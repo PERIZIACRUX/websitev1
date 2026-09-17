@@ -1,4 +1,4 @@
-import "server-only";
+
 import { prisma } from "@/infrastructure/db/client";
 import { Staff } from "@prisma/client";
 import * as argon2 from "argon2";

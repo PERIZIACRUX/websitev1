@@ -18,7 +18,7 @@
  *   - Inputs are sanitised before being sent to the AI.
  *   - Rate limiting will be applied to the chatbot endpoint.
  */
-import "server-only";
+
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";

@@ -17,7 +17,7 @@
  *   - A valid-looking QR is meaningless without server-side signature check.
  *   - The signing secret is stored in QR_SIGNING_SECRET (server-only env var).
  */
-import "server-only";
+
 
 import type { QrTokenPayloadDTO as QrTokenPayload } from "@crux-perizia/shared";
 

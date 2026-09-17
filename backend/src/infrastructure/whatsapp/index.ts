@@ -18,7 +18,7 @@
  *   - Messages are sent after successful payment verification.
  *   - Never send WhatsApp messages in response to unverified browser input.
  */
-import "server-only";
+
 
 export interface WhatsAppConfirmationParams {
   phoneNumber: string; // E.164 format, e.g. +919876543210

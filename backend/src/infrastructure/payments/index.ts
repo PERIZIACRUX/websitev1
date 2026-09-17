@@ -18,7 +18,7 @@
  *     NOT by any value sent from the browser.
  *   - Idempotency keys must be used for all order creation calls.
  */
-import "server-only";
+
 
 export interface CreateOrderParams {
   /** Amount in smallest currency unit (paise for INR) */

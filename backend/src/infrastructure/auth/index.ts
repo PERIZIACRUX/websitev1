@@ -15,7 +15,7 @@
  *   - Credentials are never passed to or trusted from the browser.
  *   - Admin and scanner routes are protected independently.
  */
-import "server-only";
+
 
 /**
  * Placeholder: verify that a request comes from an authenticated admin.
