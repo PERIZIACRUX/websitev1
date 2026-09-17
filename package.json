@@ -4,50 +4,16 @@
   "description": "CRUX × PERIZIA — Unified college fest platform. CRUX is the cultural fest; PERIZIA is the academic fest with participant registration.",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint \"app/**/*.{ts,tsx}\" \"server/**/*.ts\" \"lib/**/*.ts\" \"config/**/*.ts\" \"types/**/*.ts\"",
-    "type-check": "tsc --noEmit",
-    "test:unit": "jest tests/unit",
-    "test:integration": "jest tests/integration --runInBand",
-    "test:load": "echo 'Load tests: see tests/load/ — run with k6 or similar'",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
-    "db:push": "prisma db push",
-    "db:studio": "prisma studio",
-    "db:seed": "prisma db seed",
-    "db:format": "prisma format",
-    "db:validate": "prisma validate"
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "test": "npm run test:integration --workspace=backend",
+    "type-check": "npm run type-check --workspaces --if-present"
   },
-  "dependencies": {
-    "@prisma/client": "^6",
-    "jose": "^6.2.12",
-    "next": "16.3.4",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "react-qr-code": "^2.2.0",
-    "server-only": "^0.0.1",
-    "zod": "^3"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/jest": "^30.0.0",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.4",
-    "jest": "^30.5.1",
-    "jest-mock-extended": "^4.0.1",
-    "prisma": "^6",
-    "tailwindcss": "^4",
-    "ts-jest": "^29.4.12",
-    "tsx": "^4",
-    "typescript": "^5"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  }
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ]
 }

@@ -1,0 +1,930 @@
+// =============================================================================
+// prisma/schema.prisma
+// CRUX × PERIZIA — Unified College Fest Platform
+// Database schema — Step 9 (Staff + Audit + QR Admin + Content)
+// =============================================================================
+//
+// PostgreSQL via Neon.
+// UUIDs for all primary keys.
+// All binary media is stored in Cloudflare R2 (NOT in the database).
+// The database stores only metadata and storage references.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum QrCredentialStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum WorkshopStatus {
+  UPCOMING
+  OPEN
+  LIVE
+  ENDING_SOON
+  COMPLETED
+  CANCELLED
+  VENUE_CHANGED
+}
+
+enum WorkshopRegistrationStatus {
+  REGISTERED
+  CANCELLED
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+}
+
+enum ScannerStationType {
+  CONFERENCE
+  WORKSHOP
+  FOOD
+  HELP_DESK
+}
+
+enum NotificationType {
+  REGISTRATION_CONFIRMATION_EMAIL
+  INVOICE_EMAIL
+  WHATSAPP_CONFIRMATION
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+enum StorageProvider {
+  R2
+  YOUTUBE
+  EXTERNAL
+}
+
+/// Staff role — ADMIN has full access; VOLUNTEER has operational scan access only.
+enum StaffRole {
+  ADMIN
+  VOLUNTEER
+}
+
+// =============================================================================
+// MEDIA
+// =============================================================================
+
+/// Generic media asset record.
+/// Binary data is stored in Cloudflare R2 (storageKey) or referenced externally.
+/// This model is shared by all content types — CRUX and PERIZIA.
+model MediaAsset {
+  id              String          @id @default(uuid())
+  fileName        String
+  originalName    String
+  mediaType       MediaType
+  mimeType        String
+  storageProvider StorageProvider
+  /// R2 object key / path, or empty for YOUTUBE/EXTERNAL
+  storageKey      String
+  /// Public delivery URL (CDN or direct)
+  publicUrl       String
+  thumbnailUrl    String?
+  fileSize        Int?
+  altText         String?
+  uploadedBy      String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // ── Reverse relations ──────────────────────────────────────────────────────
+  workshopsAsImage       Workshop[]         @relation("WorkshopImage")
+  cruxEventCovers        CruxEvent[]        @relation("CruxEventCover")
+  cruxPosterMedia        CruxPoster[]       @relation("CruxPosterMedia")
+  cruxGalleryCovers      CruxGallery[]      @relation("CruxGalleryCover")
+  cruxGalleryItems       CruxGalleryItem[]  @relation("CruxGalleryItemMedia")
+  cruxAnnouncementCovers CruxAnnouncement[] @relation("CruxAnnouncementCover")
+
+  @@map("media_assets")
+}
+
+// =============================================================================
+// VENUE
+// =============================================================================
+
+/// Physical venue used by both PERIZIA workshops and CRUX events.
+model Venue {
+  id            String   @id @default(uuid())
+  name          String
+  address       String
+  latitude      Float?
+  longitude     Float?
+  googleMapsUrl String?
+  description   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // ── Reverse relations ──────────────────────────────────────────────────────
+  workshops  Workshop[]  @relation("WorkshopVenue")
+  cruxEvents CruxEvent[] @relation("CruxEventVenue")
+
+  @@map("venues")
+}
+
+// =============================================================================
+// SCANNER STATION
+// =============================================================================
+
+/// Physical scanning device/station deployed on event day.
+model ScannerStation {
+  id        String             @id @default(uuid())
+  name      String
+  type      ScannerStationType
+  location  String
+  isActive  Boolean            @default(true)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  // ── Reverse relations ──────────────────────────────────────────────────────
+  conferenceCheckIns  ConferenceCheckIn[]  @relation("StationConferenceCheckIns")
+  workshopAttendances WorkshopAttendance[] @relation("StationWorkshopAttendances")
+  foodCollections     FoodCollection[]     @relation("StationFoodCollections")
+
+  @@map("scanner_stations")
+}
+
+// =============================================================================
+// STAFF
+// =============================================================================
+
+/// A staff member (Admin or Volunteer) who operates the dashboard or scanner.
+///
+/// SECURITY RULES:
+///   - passwordHash stores ONLY a bcrypt/argon2 hash — NEVER plaintext.
+///   - Staff accounts should be DEACTIVATED (isActive = false) not deleted
+///     so that audit logs remain attributable.
+///   - lastLoginAt is updated on successful authentication only.
+model Staff {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  /// bcrypt/argon2 hash — raw password is NEVER stored
+  passwordHash         String
+  mustChangePassword   Boolean   @default(false)
+  role                 StaffRole @default(VOLUNTEER)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // ── Reverse relations ──────────────────────────────────────────────────────
+  sessions              StaffSession[]       @relation("StaffSessions")
+  auditLogs             StaffAuditLog[]      @relation("StaffAuditLogs")
+  conferenceCheckIns    ConferenceCheckIn[]  @relation("StaffConferenceCheckIns")
+  checkInUpdates        ConferenceCheckIn[]  @relation("StaffCheckInUpdates")
+  foodCollections       FoodCollection[]     @relation("StaffFoodCollections")
+  foodCollectionUpdates FoodCollection[]     @relation("StaffFoodCollectionUpdates")
+  workshopAttendances   WorkshopAttendance[] @relation("StaffWorkshopAttendances")
+  attendanceUpdates     WorkshopAttendance[] @relation("StaffAttendanceUpdates")
+  periziaContent        PeriziaContent[]     @relation("StaffContentUpdates")
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@map("staff")
+}
+
+// =============================================================================
+// STAFF SESSION
+// =============================================================================
+
+/// Represents an active or revoked staff login session.
+///
+/// SECURITY RULES:
+///   - The raw session token is NEVER stored — only tokenHash (SHA-256).
+///   - Admin can revoke individual sessions (revokedAt) or all sessions for
+///     a volunteer.
+///   - Expired and revoked sessions are kept for audit purposes — they are
+///     NOT automatically deleted.
+model StaffSession {
+  id         String    @id @default(uuid())
+  staffId    String
+  /// SHA-256 hash of the raw session token — raw token is NEVER stored
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  staff Staff @relation("StaffSessions", fields: [staffId], references: [id])
+
+  @@index([staffId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("staff_sessions")
+}
+
+// =============================================================================
+// STAFF AUDIT LOG
+// =============================================================================
+
+/// Immutable record of every significant action performed by a staff member.
+///
+/// PURPOSE: Accountability — who did what, to which entity, when.
+///
+/// DESIGN RULES:
+///   - Records are NEVER deleted or updated after creation.
+///   - staffId is nullable via SET NULL on staff deletion (deactivate instead).
+///   - entityId is nullable because some actions (e.g., DEACTIVATE_STAFF on self)
+///     may not involve a secondary entity.
+///   - details stores structured JSON context (before/after values, etc.).
+model StaffAuditLog {
+  id         String   @id @default(uuid())
+  staffId    String?
+  /// e.g. "EDIT_PAYMENT", "REVOKE_SESSION", "DEACTIVATE_STAFF"
+  action     String
+  /// e.g. "Payment", "Registration", "Staff", "FoodCollection"
+  entityType String?
+  /// Primary key of the affected entity — nullable for global actions
+  entityId   String?
+  /// Structured JSON context: { before: {...}, after: {...}, reason: "..." }
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  /// SET NULL if a staff record is ever deleted (prefer deactivation instead)
+  staff Staff? @relation("StaffAuditLogs", fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([staffId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("staff_audit_logs")
+}
+
+// =============================================================================
+// PERIZIA — EDITION & DAYS
+// =============================================================================
+
+/// One annual edition of the PERIZIA academic fest.
+model PeriziaEdition {
+  id              String   @id @default(uuid())
+  name            String
+  year            Int      @unique
+  slug            String   @unique
+  description     String?
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean  @default(false)
+  maxParticipants Int      @default(500)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  days          PeriziaDay[]     @relation("EditionDays")
+  workshops     Workshop[]       @relation("EditionWorkshops")
+  registrations Registration[]   @relation("EditionRegistrations")
+  content       PeriziaContent[] @relation("EditionContent")
+
+  @@map("perizia_editions")
+}
+
+/// One day within a PERIZIA edition.
+/// Dynamic — the number of days is not hard-coded anywhere.
+model PeriziaDay {
+  id        String   @id @default(uuid())
+  editionId String
+  dayNumber Int
+  date      DateTime @db.Date
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  edition             PeriziaEdition         @relation("EditionDays", fields: [editionId], references: [id], onDelete: Cascade)
+  workshops           Workshop[]             @relation("DayWorkshops")
+  conferenceCheckIns  ConferenceCheckIn[]    @relation("DayConferenceCheckIns")
+  foodCollections     FoodCollection[]       @relation("DayFoodCollections")
+  workshopReg         WorkshopRegistration[] @relation("DayWorkshopRegistrations")
+  workshopAttendances WorkshopAttendance[]   @relation("DayWorkshopAttendances")
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  /// Each day number is unique within an edition
+  @@unique([editionId, dayNumber])
+  /// Each calendar date is unique within an edition
+  @@unique([editionId, date])
+  @@index([editionId])
+  @@index([date])
+  @@map("perizia_days")
+}
+
+// =============================================================================
+// PERIZIA — PARTICIPANT & REGISTRATION
+// =============================================================================
+
+/// The person's persistent identity. One participant, many potential registrations.
+model Participant {
+  id          String   @id @default(uuid())
+  fullName    String
+  email       String   @unique
+  phone       String   @unique
+  collegeName String
+  collegeId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  registrations Registration[] @relation("ParticipantRegistrations")
+
+  @@index([email])
+  @@index([phone])
+  @@map("participants")
+}
+
+/// One participant's registration for one PERIZIA edition.
+/// A participant cannot register twice for the same edition.
+model Registration {
+  id                 String             @id @default(uuid())
+  /// Human-readable unique identifier, e.g. PRZ-46C94360
+  registrationNumber String             @unique
+  participantId      String
+  editionId          String
+  status             RegistrationStatus @default(PENDING)
+  registeredAt       DateTime           @default(now())
+  confirmedAt        DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  participant           Participant            @relation("ParticipantRegistrations", fields: [participantId], references: [id])
+  edition               PeriziaEdition         @relation("EditionRegistrations", fields: [editionId], references: [id])
+  payment               Payment?               @relation("RegistrationPayment")
+  qrCredential          QrCredential?          @relation("RegistrationQr")
+  conferenceCheckIns    ConferenceCheckIn[]    @relation("RegistrationConferenceCheckIns")
+  foodCollections       FoodCollection[]       @relation("RegistrationFoodCollections")
+  workshopRegistrations WorkshopRegistration[] @relation("RegistrationWorkshopRegistrations")
+  workshopAttendances   WorkshopAttendance[]   @relation("RegistrationWorkshopAttendances")
+  notifications         Notification[]         @relation("RegistrationNotifications")
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  /// One participant cannot register twice for the same edition
+  @@unique([participantId, editionId])
+  @@index([participantId])
+  @@index([editionId])
+  @@index([status])
+  @@index([registrationNumber])
+  @@map("registrations")
+}
+
+// =============================================================================
+// PERIZIA — PAYMENT
+// =============================================================================
+
+/// Payment record for a registration.
+/// Payment status is independent of registration status.
+/// A failed notification must NOT roll back a successful payment.
+model Payment {
+  id               String        @id @default(uuid())
+  registrationId   String        @unique
+  amount           Decimal       @db.Decimal(10, 2)
+  currency         String        @default("INR")
+  status           PaymentStatus @default(PENDING)
+  /// e.g. "RAZORPAY" or "TEST" — abstracted for future gateway changes
+  gateway          String
+  gatewayOrderId   String?       @unique
+  gatewayPaymentId String?       @unique
+  gatewaySignature String?
+  paidAt           DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  registration Registration @relation("RegistrationPayment", fields: [registrationId], references: [id])
+
+  @@map("payments")
+}
+
+// =============================================================================
+// PERIZIA — QR CREDENTIAL
+// =============================================================================
+
+/// One signed QR credential per confirmed registration.
+/// The QR identifies the registration. Scanning context (conference / workshop / food)
+/// determines the operation — the QR itself is context-agnostic.
+///
+/// SECURITY RULES:
+///   - tokenHash: SHA-256 of the raw token — used for fast QR verification at scan time.
+///   - encryptedToken: AES-256-GCM encrypted raw token for Admin QR recovery ONLY.
+///     The encryption key is stored server-side in an env var — NEVER in the DB.
+///   - The raw token is NEVER stored in the database.
+///   - encryptedToken is NEVER returned to participant API responses.
+///   - Only ADMIN can access encryptedToken (via secure admin API, not participant APIs).
+model QrCredential {
+  id             String             @id @default(uuid())
+  registrationId String             @unique
+  /// SHA-256 hash of the raw QR token — used for scan-time verification
+  tokenHash      String             @unique
+  /// AES-256-GCM encrypted raw token — for admin QR recovery only.
+  /// Nullable for backward compatibility with existing records.
+  /// The encryption key lives in QR_ENCRYPTION_KEY env var — NEVER in the DB.
+  encryptedToken String?
+  status         QrCredentialStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now())
+  revokedAt      DateTime?
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  registration Registration @relation("RegistrationQr", fields: [registrationId], references: [id])
+
+  @@map("qr_credentials")
+}
+
+// =============================================================================
+// PERIZIA — WORKSHOP
+// =============================================================================
+
+/// One workshop occurrence on a specific PERIZIA day.
+/// In this MVP a workshop has no sub-sessions — the workshop itself is the
+/// scheduled event. Do NOT add WorkshopSession.
+model Workshop {
+  id           String         @id @default(uuid())
+  editionId    String
+  periziaDayId String
+  venueId      String?
+  title        String
+  /// Unique within the edition — used for public URLs
+  slug         String
+  description  String?
+  speaker      String?
+  imageMediaId String?
+  startTime    DateTime
+  endTime      DateTime
+  capacity     Int?
+  status       WorkshopStatus @default(UPCOMING)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  edition               PeriziaEdition         @relation("EditionWorkshops", fields: [editionId], references: [id])
+  periziaDay            PeriziaDay             @relation("DayWorkshops", fields: [periziaDayId], references: [id])
+  venue                 Venue?                 @relation("WorkshopVenue", fields: [venueId], references: [id])
+  imageMedia            MediaAsset?            @relation("WorkshopImage", fields: [imageMediaId], references: [id])
+  workshopRegistrations WorkshopRegistration[] @relation("WorkshopWorkshopRegistrations")
+  workshopAttendances   WorkshopAttendance[]   @relation("WorkshopWorkshopAttendances")
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  @@unique([editionId, slug])
+  @@index([editionId])
+  @@index([periziaDayId])
+  @@index([venueId])
+  @@index([status])
+  @@map("workshops")
+}
+
+// =============================================================================
+// PERIZIA — WORKSHOP REGISTRATION
+// =============================================================================
+
+/// A participant's workshop selection for a specific day.
+///
+/// CRITICAL RULE: One registration → max ONE workshop per Perizia day.
+/// periziaDayId is stored directly (denormalized) to allow the UNIQUE constraint
+/// because PostgreSQL cannot enforce unique constraints via relations.
+/// The backend must validate that workshopId.periziaDayId == this.periziaDayId.
+model WorkshopRegistration {
+  id             String                     @id @default(uuid())
+  registrationId String
+  workshopId     String
+  /// Denormalized from Workshop.periziaDayId to enable UNIQUE constraint
+  periziaDayId   String
+  status         WorkshopRegistrationStatus @default(REGISTERED)
+  registeredAt   DateTime                   @default(now())
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  registration Registration @relation("RegistrationWorkshopRegistrations", fields: [registrationId], references: [id])
+  workshop     Workshop     @relation("WorkshopWorkshopRegistrations", fields: [workshopId], references: [id])
+  periziaDay   PeriziaDay   @relation("DayWorkshopRegistrations", fields: [periziaDayId], references: [id])
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  /// One participant → only one workshop per day
+  @@unique([registrationId, periziaDayId])
+  /// One participant → can't register for the same workshop twice
+  @@unique([registrationId, workshopId])
+  @@index([registrationId])
+  @@index([workshopId])
+  @@index([periziaDayId])
+  @@map("workshop_registrations")
+}
+
+// =============================================================================
+// PERIZIA — WORKSHOP ATTENDANCE
+// =============================================================================
+
+/// Records actual physical attendance at a workshop (second QR scan of the day,
+/// different from the morning conference check-in).
+///
+/// CRITICAL RULE: One registration → max ONE workshop attendance per day.
+/// periziaDayId denormalized here for the same reason as WorkshopRegistration.
+model WorkshopAttendance {
+  id               String   @id @default(uuid())
+  registrationId   String
+  workshopId       String
+  /// Denormalized from Workshop.periziaDayId to enable UNIQUE constraint
+  periziaDayId     String
+  scannerStationId String?
+  attendedAt       DateTime @default(now())
+  /// Legacy string field — preserved for existing records
+  markedBy         String?
+  /// FK to Staff who marked attendance (preferred over legacy markedBy string)
+  markedByStaffId  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  /// FK to Staff who last corrected this record
+  updatedByStaffId String?
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  registration   Registration    @relation("RegistrationWorkshopAttendances", fields: [registrationId], references: [id])
+  workshop       Workshop        @relation("WorkshopWorkshopAttendances", fields: [workshopId], references: [id])
+  periziaDay     PeriziaDay      @relation("DayWorkshopAttendances", fields: [periziaDayId], references: [id])
+  scannerStation ScannerStation? @relation("StationWorkshopAttendances", fields: [scannerStationId], references: [id])
+  markedByStaff  Staff?          @relation("StaffWorkshopAttendances", fields: [markedByStaffId], references: [id], onDelete: SetNull)
+  updatedByStaff Staff?          @relation("StaffAttendanceUpdates", fields: [updatedByStaffId], references: [id], onDelete: SetNull)
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  /// One participant cannot attend the same workshop twice
+  @@unique([registrationId, workshopId])
+  /// One participant cannot attend two workshops on the same day
+  @@unique([registrationId, periziaDayId])
+  @@index([registrationId])
+  @@index([workshopId])
+  @@index([periziaDayId])
+  @@map("workshop_attendances")
+}
+
+// =============================================================================
+// PERIZIA — CONFERENCE CHECK-IN
+// =============================================================================
+
+/// Represents main conference entry for a participant on a specific Perizia day.
+///
+/// CRITICAL RULE: One registration → max ONE check-in per day.
+/// The same QR credential therefore works for all four days (one scan each).
+model ConferenceCheckIn {
+  id                 String   @id @default(uuid())
+  registrationId     String
+  periziaDayId       String
+  scannerStationId   String?
+  checkedInAt        DateTime @default(now())
+  /// Legacy string field — preserved for existing records
+  checkedInBy        String?
+  /// FK to Staff who performed the check-in (preferred over legacy string)
+  checkedInByStaffId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  /// FK to Staff who last corrected this record (admin manual correction)
+  updatedByStaffId   String?
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  registration     Registration    @relation("RegistrationConferenceCheckIns", fields: [registrationId], references: [id])
+  periziaDay       PeriziaDay      @relation("DayConferenceCheckIns", fields: [periziaDayId], references: [id])
+  scannerStation   ScannerStation? @relation("StationConferenceCheckIns", fields: [scannerStationId], references: [id])
+  checkedInByStaff Staff?          @relation("StaffConferenceCheckIns", fields: [checkedInByStaffId], references: [id], onDelete: SetNull)
+  updatedByStaff   Staff?          @relation("StaffCheckInUpdates", fields: [updatedByStaffId], references: [id], onDelete: SetNull)
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  /// One check-in per participant per day — same QR works across all days
+  @@unique([registrationId, periziaDayId])
+  @@index([registrationId])
+  @@index([periziaDayId])
+  @@map("conference_check_ins")
+}
+
+// =============================================================================
+// PERIZIA — FOOD COLLECTION
+// =============================================================================
+
+/// Records a meal collection event.
+///
+/// CRITICAL RULES:
+///   - Breakfast once per participant per day
+///   - Lunch once per participant per day
+///   - These are independent of conference check-in and workshop attendance
+model FoodCollection {
+  id                 String   @id @default(uuid())
+  registrationId     String
+  periziaDayId       String
+  mealType           MealType
+  collectedAt        DateTime @default(now())
+  scannerStationId   String?
+  /// Legacy string field — preserved for existing records
+  collectedBy        String?
+  /// FK to Staff who scanned/collected (preferred over legacy string)
+  collectedByStaffId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  /// FK to Staff who last corrected this record (admin manual correction)
+  updatedByStaffId   String?
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  registration     Registration    @relation("RegistrationFoodCollections", fields: [registrationId], references: [id])
+  periziaDay       PeriziaDay      @relation("DayFoodCollections", fields: [periziaDayId], references: [id])
+  scannerStation   ScannerStation? @relation("StationFoodCollections", fields: [scannerStationId], references: [id])
+  collectedByStaff Staff?          @relation("StaffFoodCollections", fields: [collectedByStaffId], references: [id], onDelete: SetNull)
+  updatedByStaff   Staff?          @relation("StaffFoodCollectionUpdates", fields: [updatedByStaffId], references: [id], onDelete: SetNull)
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  /// One meal type per participant per day
+  @@unique([registrationId, periziaDayId, mealType])
+  @@index([registrationId])
+  @@index([periziaDayId])
+  @@index([mealType])
+  @@map("food_collections")
+}
+
+// =============================================================================
+// PERIZIA — CONTENT (CMS)
+// =============================================================================
+
+/// Key-value content store for Admin-editable landing page content per edition.
+///
+/// Examples of keys:
+///   "hero_title", "hero_description", "announcement", "registration_notice"
+///
+/// IMPORTANT: Workshops are NOT stored here — use the Workshop table.
+/// This is for simple text/markdown content blocks only.
+model PeriziaContent {
+  id               String   @id @default(uuid())
+  editionId        String
+  /// Unique key within the edition, e.g. "hero_title"
+  key              String
+  /// Plain text or Markdown content value
+  value            String
+  updatedAt        DateTime @updatedAt
+  /// FK to Staff who last updated this content block
+  updatedByStaffId String?
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  edition        PeriziaEdition @relation("EditionContent", fields: [editionId], references: [id])
+  updatedByStaff Staff?         @relation("StaffContentUpdates", fields: [updatedByStaffId], references: [id], onDelete: SetNull)
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  /// One key per edition
+  @@unique([editionId, key])
+  @@index([editionId])
+  @@map("perizia_content")
+}
+
+// =============================================================================
+// PERIZIA — NOTIFICATION
+// =============================================================================
+
+/// Tracks delivery of confirmation/invoice/WhatsApp messages.
+///
+/// IMPORTANT: Notification failure does NOT affect Payment or Registration status.
+/// Failed notifications can be retried asynchronously.
+model Notification {
+  id             String             @id @default(uuid())
+  registrationId String
+  type           NotificationType
+  status         NotificationStatus @default(PENDING)
+  attempts       Int                @default(0)
+  sentAt         DateTime?
+  lastError      String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  registration Registration @relation("RegistrationNotifications", fields: [registrationId], references: [id])
+
+  @@index([registrationId])
+  @@index([type])
+  @@index([status])
+  @@map("notifications")
+}
+
+// =============================================================================
+// CRUX — EDITION
+// =============================================================================
+
+/// One annual edition of the CRUX cultural fest.
+model CruxEdition {
+  id          String    @id @default(uuid())
+  name        String
+  year        Int       @unique
+  slug        String    @unique
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  events        CruxEvent[]        @relation("CruxEditionEvents")
+  posters       CruxPoster[]       @relation("CruxEditionPosters")
+  galleries     CruxGallery[]      @relation("CruxEditionGalleries")
+  videos        CruxVideo[]        @relation("CruxEditionVideos")
+  announcements CruxAnnouncement[] @relation("CruxEditionAnnouncements")
+
+  @@map("crux_editions")
+}
+
+// =============================================================================
+// CRUX — EVENT
+// =============================================================================
+
+/// A cultural event within a CRUX edition.
+/// CRUX does NOT implement participant registration.
+model CruxEvent {
+  id               String    @id @default(uuid())
+  editionId        String
+  title            String
+  /// Unique within edition
+  slug             String
+  description      String?
+  category         String?
+  eventDate        DateTime?
+  startTime        DateTime?
+  endTime          DateTime?
+  venueId          String?
+  coverMediaId     String?
+  /// Plain text or Markdown for external registration info (if any)
+  registrationInfo String?
+  displayOrder     Int       @default(0)
+  published        Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  edition    CruxEdition @relation("CruxEditionEvents", fields: [editionId], references: [id], onDelete: Cascade)
+  venue      Venue?      @relation("CruxEventVenue", fields: [venueId], references: [id])
+  coverMedia MediaAsset? @relation("CruxEventCover", fields: [coverMediaId], references: [id])
+
+  @@unique([editionId, slug])
+  @@index([editionId])
+  @@index([published])
+  @@index([displayOrder])
+  @@map("crux_events")
+}
+
+// =============================================================================
+// CRUX — POSTER
+// =============================================================================
+
+/// An event poster managed by admins. Can be edited after publication.
+model CruxPoster {
+  id           String   @id @default(uuid())
+  editionId    String
+  title        String
+  description  String?
+  mediaId      String
+  displayOrder Int      @default(0)
+  published    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  edition CruxEdition @relation("CruxEditionPosters", fields: [editionId], references: [id], onDelete: Cascade)
+  media   MediaAsset  @relation("CruxPosterMedia", fields: [mediaId], references: [id])
+
+  @@index([editionId])
+  @@index([published])
+  @@index([displayOrder])
+  @@map("crux_posters")
+}
+
+// =============================================================================
+// CRUX — GALLERY
+// =============================================================================
+
+/// A gallery/album of media items within a CRUX edition.
+model CruxGallery {
+  id           String   @id @default(uuid())
+  editionId    String
+  title        String
+  description  String?
+  coverMediaId String?
+  published    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  edition    CruxEdition       @relation("CruxEditionGalleries", fields: [editionId], references: [id], onDelete: Cascade)
+  coverMedia MediaAsset?       @relation("CruxGalleryCover", fields: [coverMediaId], references: [id])
+  items      CruxGalleryItem[] @relation("GalleryItems")
+
+  @@index([editionId])
+  @@index([published])
+  @@map("crux_galleries")
+}
+
+// =============================================================================
+// CRUX — GALLERY ITEM
+// =============================================================================
+
+/// One image or video inside a gallery.
+model CruxGalleryItem {
+  id           String   @id @default(uuid())
+  galleryId    String
+  mediaId      String
+  caption      String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  gallery CruxGallery @relation("GalleryItems", fields: [galleryId], references: [id], onDelete: Cascade)
+  media   MediaAsset  @relation("CruxGalleryItemMedia", fields: [mediaId], references: [id])
+
+  @@index([galleryId])
+  @@index([displayOrder])
+  @@map("crux_gallery_items")
+}
+
+// =============================================================================
+// CRUX — VIDEO
+// =============================================================================
+
+/// A YouTube (or other externally hosted) video.
+/// Binary video data is NEVER stored in the database.
+/// CruxVideo stores only the URL and metadata for embedding.
+model CruxVideo {
+  id             String   @id @default(uuid())
+  editionId      String
+  title          String
+  description    String?
+  /// Full YouTube watch URL, e.g. https://www.youtube.com/watch?v=...
+  youtubeUrl     String
+  /// YouTube video ID extracted from the URL, e.g. dQw4w9WgXcQ
+  youtubeVideoId String
+  /// Optional: custom thumbnail override (YouTube provides auto-thumbnails)
+  thumbnailUrl   String?
+  category       String?
+  displayOrder   Int      @default(0)
+  published      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  edition CruxEdition @relation("CruxEditionVideos", fields: [editionId], references: [id], onDelete: Cascade)
+
+  @@index([editionId])
+  @@index([published])
+  @@index([displayOrder])
+  @@map("crux_videos")
+}
+
+// =============================================================================
+// CRUX — ANNOUNCEMENT
+// =============================================================================
+
+/// A news/announcement item for a CRUX edition.
+model CruxAnnouncement {
+  id           String    @id @default(uuid())
+  editionId    String
+  title        String
+  content      String
+  coverMediaId String?
+  published    Boolean   @default(false)
+  publishAt    DateTime?
+  displayOrder Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  edition    CruxEdition @relation("CruxEditionAnnouncements", fields: [editionId], references: [id], onDelete: Cascade)
+  coverMedia MediaAsset? @relation("CruxAnnouncementCover", fields: [coverMediaId], references: [id])
+
+  @@index([editionId])
+  @@index([published])
+  @@index([displayOrder])
+  @@map("crux_announcements")
+}
