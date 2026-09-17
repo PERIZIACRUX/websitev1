@@ -19,6 +19,7 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "jose": "^6.2.12",
+    "server-only": "^0.0.1",
     "zod": "^3.0.0"
   },
   "devDependencies": {
