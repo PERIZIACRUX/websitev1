@@ -19,8 +19,7 @@
     "types": [
       "react",
       "react-dom",
-      "node",
-      "jest"
+      "node"
     ],
     "incremental": true,
     "plugins": [
