@@ -11,7 +11,7 @@
  * IMPORTANT: This file imports 'server-only'.
  * It must never be imported by client components.
  */
-import "server-only";
+
 
 import { PrismaClient } from "@prisma/client";
 

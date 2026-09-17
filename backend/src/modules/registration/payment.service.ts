@@ -1,4 +1,4 @@
-import "server-only";
+
 
 import { prisma } from "@/infrastructure/db/client";
 import { ApiError } from "@/utils/error-handler";

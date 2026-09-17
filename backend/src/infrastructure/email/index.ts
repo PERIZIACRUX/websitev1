@@ -16,7 +16,7 @@
  *   - Transactional emails are idempotent where possible.
  *   - Queue/retry logic to be added for reliability.
  */
-import "server-only";
+
 
 export interface RegistrationConfirmationEmailParams {
   to: string;

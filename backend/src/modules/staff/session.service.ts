@@ -1,4 +1,4 @@
-import "server-only";
+
 import crypto from "crypto";
 import { prisma } from "@/infrastructure/db/client";
 import { Staff, StaffSession } from "@prisma/client";
