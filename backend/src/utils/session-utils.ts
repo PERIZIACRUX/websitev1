@@ -19,8 +19,8 @@ export async function createSessionToken(payload: SessionPayload) {
     value: token,
     options: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax" as const,
+      secure: true,
+      sameSite: "none" as const,
       path: "/",
       maxAge: 60 * 60 * 2 * 1000, // express expects ms for maxAge, unlike some others, wait, express cookie maxAge is in milliseconds. 2 hours.
     },

@@ -1,4 +1,20 @@
+"use server";
+
 import { fetchBackend } from "@/lib/api";
+import { redirect } from "next/navigation";
+import { setStaffSessionCookie, clearStaffSessionCookie } from "@/lib/auth/staff-session";
+import { cookies } from "next/headers";
+
+function extractCookie(res: Response, cookieName: string): string | null {
+  const setCookieHeaders = res.headers.getSetCookie();
+  for (const header of setCookieHeaders) {
+    if (header.startsWith(`${cookieName}=`)) {
+      const match = header.match(new RegExp(`${cookieName}=([^;]+)`));
+      if (match) return match[1];
+    }
+  }
+  return null;
+}
 
 export async function loginApiAction(prevState: any, formData: FormData) {
   const email = formData.get("email") as string;
@@ -20,32 +36,39 @@ export async function loginApiAction(prevState: any, formData: FormData) {
       return { error: data.error || data.message || "Invalid email or password." };
     }
 
+    const token = extractCookie(res, "staff_session_id");
+    if (token) {
+      await setStaffSessionCookie(token);
+    }
+
     if (data.data.mustChangePassword) {
-      window.location.assign("/staff/change-password");
-      return prevState;
+      redirect("/staff/change-password");
     }
     
     if (data.data.role === "ADMIN") {
-      window.location.assign("/staff/admin");
+      redirect("/staff/admin");
     } else {
-      window.location.assign("/staff/dashboard");
+      redirect("/staff/dashboard");
     }
-    
-    return prevState;
   } catch (error: any) {
+    if (error.message === "NEXT_REDIRECT") throw error;
     return { error: "Invalid email or password." };
   }
 }
 
 export async function logoutApiAction() {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("staff_session_id")?.value;
     await fetchBackend("/api/v1/staff/auth/logout", {
       method: "POST",
+      headers: token ? { Cookie: `staff_session_id=${token}` } : {},
     });
   } catch (err) {
     // ignore
   } finally {
-    window.location.assign("/staff/login");
+    await clearStaffSessionCookie();
+    redirect("/staff/login");
   }
 }
 
@@ -67,9 +90,13 @@ export async function changePasswordApiAction(prevState: any, formData: FormData
   }
 
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("staff_session_id")?.value;
+
     const res = await fetchBackend("/api/v1/staff/auth/change-password", {
       method: "POST",
       body: JSON.stringify({ oldPassword, newPassword }),
+      headers: token ? { Cookie: `staff_session_id=${token}` } : {},
     });
     
     const data = await res.json();
@@ -78,11 +105,9 @@ export async function changePasswordApiAction(prevState: any, formData: FormData
       return { error: data.error || data.message || "Failed to change password." };
     }
 
-    // Since we don't know the role directly, redirect to /staff/dashboard
-    // and let SSR correctly route admin users to /staff/admin.
-    window.location.assign("/staff/dashboard");
-    return prevState;
+    redirect("/staff/dashboard");
   } catch (error: any) {
+    if (error.message === "NEXT_REDIRECT") throw error;
     return { error: error.message || "Failed to change password." };
   }
 }
