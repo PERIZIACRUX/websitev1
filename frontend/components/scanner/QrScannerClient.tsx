@@ -116,9 +116,6 @@ export default function QrScannerClient() {
               <Scanner
                 onScan={handleScan}
                 onError={(error: any) => console.error("Scanner Error:", error)}
-                constraints={{
-                  facingMode: "environment" // Force rear camera on mobile
-                }}
               />
             ) : (
               <form onSubmit={handleManualSubmit} className="absolute inset-0 bg-white flex flex-col justify-center p-6 space-y-4">
