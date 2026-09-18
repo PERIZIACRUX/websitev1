@@ -4,6 +4,7 @@ import { useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { fetchBackend } from "@/lib/api";
+import QRCode from "react-qr-code";
 
 export default function TestPaymentPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -45,7 +46,16 @@ export default function TestPaymentPage({ params }: { params: Promise<{ id: stri
         <div className="bg-green-50 border border-green-200 p-8 rounded-2xl max-w-md w-full text-center shadow-sm">
           <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">✓</div>
           <h2 className="text-2xl font-bold text-green-800 mb-2">Payment Successful!</h2>
-          <p className="text-green-700 mb-6">Your registration ({registrationNumber}) has been confirmed.</p>
+          <p className="text-green-700 mb-6">Your registration has been confirmed.</p>
+          
+          <div className="bg-white p-6 rounded-xl border border-green-100 inline-block mb-6 shadow-sm">
+            <p className="text-gray-500 text-sm font-semibold mb-3 uppercase tracking-widest">Entry Pass</p>
+            <div className="flex justify-center">
+              <QRCode value={registrationNumber} size={150} level="M" />
+            </div>
+            <p className="mt-4 font-mono font-bold text-gray-900 tracking-wider">{registrationNumber}</p>
+          </div>
+
           <Link href="/perizia" className="inline-block w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition-all">
             Return to Dashboard
           </Link>
