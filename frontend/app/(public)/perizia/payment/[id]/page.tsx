@@ -13,6 +13,7 @@ export default function TestPaymentPage({ params }: { params: Promise<{ id: stri
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [qrToken, setQrToken] = useState<string | null>(null);
 
   const handlePayment = async (status: "SUCCESS" | "FAILURE") => {
     setLoading(true);
@@ -28,6 +29,7 @@ export default function TestPaymentPage({ params }: { params: Promise<{ id: stri
         setError(json.error || "Payment verification failed");
       } else {
         if (status === "SUCCESS") {
+          setQrToken(json.qrToken);
           setSuccess(true);
         } else {
           setError("Payment was declined (Simulated Failure).");
@@ -51,7 +53,7 @@ export default function TestPaymentPage({ params }: { params: Promise<{ id: stri
           <div className="bg-white p-6 rounded-xl border border-green-100 inline-block mb-6 shadow-sm">
             <p className="text-gray-500 text-sm font-semibold mb-3 uppercase tracking-widest">Entry Pass</p>
             <div className="flex justify-center">
-              <QRCode value={registrationNumber} size={150} level="M" />
+              {qrToken && <QRCode value={qrToken} size={150} level="M" />}
             </div>
             <p className="mt-4 font-mono font-bold text-gray-900 tracking-wider">{registrationNumber}</p>
           </div>
