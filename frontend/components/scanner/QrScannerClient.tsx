@@ -1,160 +1,172 @@
 "use client";
 
-import { useState } from "react";
-import dynamic from "next/dynamic";
-import { verifyScanApiAction } from "@/app/staff/scanner/api-client-actions";
-import type { VerifyScanResult } from "@/app/staff/scanner/api-client-actions";
-
-const Scanner = dynamic(
-  () => import("@yudiel/react-qr-scanner").then((mod) => mod.Scanner),
-  { ssr: false }
-);
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+// import dynamic from "next/dynamic";
+// import { verifyScanApiAction } from "@/app/staff/scanner/api-client-actions";
+// import type { VerifyScanResult } from "@/app/staff/scanner/api-client-actions";
+
+// const Scanner = dynamic(
+//   () => import("@yudiel/react-qr-scanner").then((mod) => mod.Scanner),
+//   { ssr: false }
+// );
 
 export default function QrScannerClient() {
-  const [isScanning, setIsScanning] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState<VerifyScanResult | null>(null);
-  const [manualMode, setManualMode] = useState(false);
-  const [manualInput, setManualInput] = useState("");
+  const [isTestActive, setIsTestActive] = useState(false);
+  const [logMessages, setLogMessages] = useState<string[]>([]);
+  const [errorDetails, setErrorDetails] = useState<{name: string, message: string} | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  const processQrToken = async (qrToken: string) => {
-    // 4. DUPLICATE SCAN PROTECTION
-    // Immediately lock scanning to prevent multiple API requests
-    if (isProcessing || !isScanning) return;
-    
-    setIsScanning(false);
-    setIsProcessing(true);
+  const addLog = (msg: string) => {
+    console.log(msg);
+    setLogMessages((prev) => [...prev, msg]);
+  };
 
+  const startCameraTest = async () => {
+    addLog("SCAN BUTTON CLICKED");
+    setIsTestActive(true);
+    addLog("CAMERA INITIALIZATION STARTED");
+    addLog(`IS SECURE CONTEXT: ${window.isSecureContext}`);
+    addLog(`MEDIA DEVICES: ${!!navigator.mediaDevices}`);
+    addLog(`GET USER MEDIA: ${typeof navigator.mediaDevices?.getUserMedia}`);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      addLog("GET USER MEDIA FAILED");
+      setErrorDetails({
+        name: "UnsupportedBrowser",
+        message: "navigator.mediaDevices.getUserMedia is not supported by this browser or context."
+      });
+      return;
+    }
+
+    addLog("CALLING GET USER MEDIA");
     try {
-      const res = await verifyScanApiAction(qrToken);
-      setResult(res);
-    } catch (err) {
-      setResult({ valid: false, message: "An unexpected error occurred." });
-    } finally {
-      setIsProcessing(false);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false
+      });
+      addLog("GET USER MEDIA SUCCESS");
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(e => {
+          addLog("VIDEO PLAY ERROR: " + e.message);
+        });
+        addLog("VIDEO STREAM ATTACHED");
+      }
+    } catch (err: any) {
+      addLog("GET USER MEDIA FAILED");
+      console.error(err);
+      setErrorDetails({
+        name: err.name || "UnknownError",
+        message: err.message || "An unknown error occurred while initializing the camera."
+      });
     }
   };
 
-  const handleScan = (detectedCodes: { rawValue: string }[]) => {
-    if (detectedCodes.length > 0 && isScanning && !isProcessing) {
-      processQrToken(detectedCodes[0].rawValue);
+  const stopCameraTest = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsTestActive(false);
+    setLogMessages([]);
+    setErrorDetails(null);
   };
 
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualInput.trim()) return;
-    processQrToken(manualInput.trim());
-  };
-
-  const resetScanner = () => {
-    setResult(null);
-    setManualInput("");
-    setIsScanning(true);
-  };
+  useEffect(() => {
+    addLog("SCANNER COMPONENT MOUNTED");
+    return () => {
+      // Cleanup on unmount
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
 
   return (
     <div className="max-w-md mx-auto bg-white shadow-xl rounded-xl overflow-hidden flex flex-col border border-gray-200">
       <div className="bg-indigo-700 px-4 py-3 flex justify-between items-center text-white">
-        <h2 className="text-lg font-bold">QR Scanner</h2>
+        <h2 className="text-lg font-bold">QR Scanner (Debug Test)</h2>
         <Link href="/staff/dashboard" className="text-sm text-indigo-100 hover:text-white font-medium">
           Dashboard
         </Link>
       </div>
 
-      {/* Main Scanner / Result Area */}
-      <div className="p-6 flex-1 flex flex-col items-center justify-center min-h-[400px]">
-        {isProcessing && (
-          <div className="text-center py-12 w-full">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600 font-medium animate-pulse">Verifying...</p>
+      <div className="p-6 flex-1 flex flex-col min-h-[400px]">
+        {!isTestActive ? (
+          <div className="flex-1 flex flex-col items-center justify-center space-y-6">
+            <div className="text-center">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Diagnostic Mode</h3>
+              <p className="text-gray-500">Tap the button below to initiate the direct camera test.</p>
+            </div>
+            <button
+              onClick={startCameraTest}
+              className="w-full py-4 px-6 rounded-lg text-lg font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md active:bg-indigo-800 transition-colors"
+            >
+              Start Direct Camera Test
+            </button>
           </div>
-        )}
+        ) : (
+          <div className="w-full flex flex-col space-y-4">
+            <div className="w-full relative rounded-lg overflow-hidden border-2 border-dashed border-gray-300 shadow-sm aspect-square bg-black flex items-center justify-center">
+              <video 
+                ref={videoRef}
+                autoPlay 
+                playsInline 
+                muted
+                className="w-full h-full object-cover"
+              />
+              {!streamRef.current && !errorDetails && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-white text-sm font-mono animate-pulse">Initializing...</span>
+                </div>
+              )}
+            </div>
 
-        {result && !isProcessing && (
-          <div className="w-full text-center space-y-6 animate-in fade-in zoom-in duration-200">
-            {result.valid ? (
-              <div className="p-6 bg-emerald-50 border-2 border-emerald-500 rounded-xl">
-                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-4">
-                  <svg className="h-10 w-10 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-bold text-emerald-900 mb-1">✓ {result.message}</h3>
-                <div className="mt-4 bg-white p-4 rounded-lg shadow-sm text-left">
-                  <p className="text-sm text-gray-500 uppercase font-semibold">Participant</p>
-                  <p className="text-lg font-bold text-gray-900">{result.participantName}</p>
-                  
-                  <p className="text-sm text-gray-500 uppercase font-semibold mt-3">Registration No.</p>
-                  <p className="text-lg font-bold text-gray-900 font-mono">{result.registrationNumber}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="p-6 bg-red-50 border-2 border-red-500 rounded-xl">
-                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
-                  <svg className="h-10 w-10 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold text-red-900">✕ {result.message}</h3>
+            {streamRef.current && (
+              <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-xl text-center">
+                <h3 className="text-lg font-bold text-emerald-900">Camera Working!</h3>
               </div>
             )}
 
+            {errorDetails && (
+              <div className="p-4 bg-red-50 border-2 border-red-500 rounded-xl">
+                <h3 className="text-lg font-bold text-red-900 mb-2">Camera Error</h3>
+                <p className="text-sm text-red-800 font-mono"><strong>Name:</strong> {errorDetails.name}</p>
+                <p className="text-sm text-red-800 font-mono mt-1"><strong>Message:</strong> {errorDetails.message}</p>
+                <div className="mt-4 text-xs text-gray-600 space-y-1 bg-white p-2 rounded border border-red-200">
+                  <p>{errorDetails.name === "NotAllowedError" ? "-> Permission was denied. Please allow camera access." : ""}</p>
+                  <p>{errorDetails.name === "NotFoundError" ? "-> No camera was found on this device." : ""}</p>
+                  <p>{errorDetails.name === "NotReadableError" ? "-> The camera is currently being used by another application." : ""}</p>
+                  <p>{errorDetails.name === "SecurityError" ? "-> Camera access is blocked by browser security settings." : ""}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-gray-900 rounded p-3 h-48 overflow-y-auto">
+              <h4 className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Diagnostic Logs</h4>
+              <div className="space-y-1">
+                {logMessages.map((log, i) => (
+                  <p key={i} className="text-xs text-green-400 font-mono break-all">{'>'} {log}</p>
+                ))}
+              </div>
+            </div>
+
             <button
-              onClick={resetScanner}
-              className="w-full py-4 px-6 rounded-lg text-lg font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md active:bg-indigo-800 transition-colors"
+              onClick={stopCameraTest}
+              className="w-full py-3 px-6 rounded-lg text-sm font-bold text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors"
             >
-              Scan Next
+              Stop & Reset Test
             </button>
           </div>
         )}
-
-        {isScanning && !isProcessing && !result && (
-          <div className="w-full relative rounded-lg overflow-hidden border border-gray-300 shadow-sm aspect-square bg-black">
-            {!manualMode ? (
-              <Scanner
-                onScan={handleScan}
-                onError={(error: any) => console.error("Scanner Error:", error)}
-              />
-            ) : (
-              <form onSubmit={handleManualSubmit} className="absolute inset-0 bg-white flex flex-col justify-center p-6 space-y-4">
-                <label className="block text-sm font-medium text-gray-700 text-center">
-                  Manual QR Code Entry
-                </label>
-                <input
-                  type="text"
-                  value={manualInput}
-                  onChange={(e) => setManualInput(e.target.value)}
-                  className="w-full border-2 border-gray-300 rounded-lg p-3 text-center focus:border-indigo-500 focus:ring-indigo-500"
-                  placeholder="Enter token..."
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  disabled={!manualInput.trim()}
-                  className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg disabled:opacity-50"
-                >
-                  Verify Code
-                </button>
-              </form>
-            )}
-          </div>
-        )}
       </div>
-
-      {/* Footer Controls */}
-      {isScanning && !isProcessing && !result && (
-        <div className="bg-gray-50 border-t border-gray-200 p-4 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setManualMode(!manualMode)}
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-900"
-          >
-            {manualMode ? "Use Camera to Scan" : "Enter QR manually"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
