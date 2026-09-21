@@ -1,4 +1,8 @@
+"use server";
+
 import { fetchBackend } from "@/lib/api";
+import { cookies } from "next/headers";
+
 export type VerifyScanResult = {
   valid: boolean;
   registrationNumber?: string;
@@ -12,8 +16,18 @@ export async function verifyScanApiAction(qrToken: string): Promise<VerifyScanRe
   }
 
   try {
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get("staff_session_id")?.value;
+
+    if (!sessionToken) {
+      return { valid: false, message: "Unauthorized: Missing session token." };
+    }
+
     const res = await fetchBackend("/api/v1/staff/scanner/verify", {
       method: "POST",
+      headers: {
+        Cookie: `staff_session_id=${sessionToken}`,
+      },
       body: JSON.stringify({ qrToken }),
     });
     
