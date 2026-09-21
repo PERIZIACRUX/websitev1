@@ -29,16 +29,16 @@ export async function loginApiAction(prevState: any, formData: FormData) {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    
-    const data = await res.json();
-
-    if (!res.ok || !data.success) {
-      return { error: data.error || data.message || "Invalid email or password." };
-    }
 
     const token = extractCookie(res, "staff_session_id");
     if (token) {
       await setStaffSessionCookie(token);
+    }
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      return { error: data.error || data.message || "Invalid email or password." };
     }
 
     if (data.data.mustChangePassword) {
@@ -60,6 +60,7 @@ export async function logoutApiAction() {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("staff_session_id")?.value;
+    
     await fetchBackend("/api/v1/staff/auth/logout", {
       method: "POST",
       headers: token ? { Cookie: `staff_session_id=${token}` } : {},
@@ -68,8 +69,9 @@ export async function logoutApiAction() {
     // ignore
   } finally {
     await clearStaffSessionCookie();
-    redirect("/staff/login");
   }
+  
+  redirect("/staff/login");
 }
 
 export async function changePasswordApiAction(prevState: any, formData: FormData) {
@@ -95,8 +97,8 @@ export async function changePasswordApiAction(prevState: any, formData: FormData
 
     const res = await fetchBackend("/api/v1/staff/auth/change-password", {
       method: "POST",
-      body: JSON.stringify({ oldPassword, newPassword }),
       headers: token ? { Cookie: `staff_session_id=${token}` } : {},
+      body: JSON.stringify({ oldPassword, newPassword }),
     });
     
     const data = await res.json();
