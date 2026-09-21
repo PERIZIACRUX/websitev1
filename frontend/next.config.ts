@@ -4,7 +4,7 @@ const securityHeaders = [
   // Content Security Policy
   {
     key: "Content-Security-Policy",
-    value: `default-src 'self'; connect-src 'self' ${process.env.NEXT_PUBLIC_BACKEND_API_URL || ''}; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`,
+    value: `default-src 'self'; connect-src 'self' ${process.env.NEXT_PUBLIC_BACKEND_API_URL || ''}; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;`,
   },
   // Prevent clickjacking
   {

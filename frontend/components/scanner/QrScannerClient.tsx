@@ -21,6 +21,15 @@ export default function QrScannerClient() {
   // Synchronous scan lock to prevent race conditions and duplicate API calls
   const isProcessingRef = useRef(false);
 
+  // Initialize ZXing WASM module location
+  useEffect(() => {
+    import("@yudiel/react-qr-scanner").then(({ setZXingModuleOverrides }) => {
+      setZXingModuleOverrides({
+        locateFile: (path: string) => `/wasm/${path}`,
+      });
+    }).catch(err => console.error("Failed to configure WASM module:", err));
+  }, []);
+
   const startScanner = () => {
     isProcessingRef.current = false;
     setResult(null);
@@ -146,6 +155,7 @@ export default function QrScannerClient() {
               <Scanner
                 onScan={handleScan}
                 onError={handleError}
+                sound={false}
                 components={{
                   torch: false,
                   zoom: false,
