@@ -12,9 +12,22 @@ import staffDashboardRouter from "./routes/staff/dashboard.routes";
 
 const app = express();
 
-const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+const allowedOrigins = process.env.FRONTEND_URL 
+  ? process.env.FRONTEND_URL.split(',') 
+  : ["http://localhost:3000"];
 
-app.use(cors({ origin: frontendUrl, credentials: true }));
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) {
+      return callback(null, true);
+    }
+    
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(cookieParser());
 

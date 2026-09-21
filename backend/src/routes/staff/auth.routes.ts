@@ -26,8 +26,8 @@ router.post("/login", async (req, res, next) => {
 
     res.cookie(STAFF_SESSION_COOKIE_NAME, rawToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: true, // MUST be true for SameSite=None
+      sameSite: "none", // MUST be none for cross-domain cookies (Vercel -> Render)
       path: "/",
       maxAge: 12 * 60 * 60 * 1000, // 12 hours
     });
