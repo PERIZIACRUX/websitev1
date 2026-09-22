@@ -5,9 +5,40 @@ import { cookies } from "next/headers";
 
 export type VerifyScanResult = {
   valid: boolean;
-  registrationNumber?: string;
-  participantName?: string;
   message: string;
+  participant?: {
+    name: string;
+    registrationNumber: string;
+  };
+  day?: {
+    id: string;
+    number: number;
+    name: string;
+  } | null;
+  conference?: {
+    eligible: boolean;
+    checkedIn: boolean;
+    checkedInAt: string | null;
+  } | null;
+  workshops?: Array<{
+    id: string;
+    title: string;
+    time: string;
+    venue: string;
+    registered: boolean;
+    attended: boolean;
+    attendedAt: string | null;
+  }>;
+  food?: {
+    breakfast: {
+      collected: boolean;
+      collectedAt: string | null;
+    };
+    lunch: {
+      collected: boolean;
+      collectedAt: string | null;
+    };
+  } | null;
 };
 
 export async function verifyScanApiAction(qrToken: string): Promise<VerifyScanResult> {

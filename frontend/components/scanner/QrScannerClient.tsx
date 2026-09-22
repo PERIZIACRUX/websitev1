@@ -194,7 +194,7 @@ export default function QrScannerClient() {
         )}
 
         {/* State: SUCCESS */}
-        {status === "SUCCESS" && result && (
+        {status === "SUCCESS" && result && result.participant && (
           <div className="w-full max-w-sm flex flex-col items-center animate-in slide-in-from-bottom-4 duration-300">
             <div className="w-full p-6 bg-emerald-50 border-2 border-emerald-500 rounded-2xl shadow-sm">
               <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-emerald-100 mb-6 shadow-inner">
@@ -207,12 +207,124 @@ export default function QrScannerClient() {
               <div className="bg-white p-5 rounded-xl shadow-sm border border-emerald-100 text-left space-y-4">
                 <div>
                   <p className="text-xs text-emerald-600 uppercase font-bold tracking-wider">Participant</p>
-                  <p className="text-xl font-bold text-gray-900 leading-tight mt-1">{result.participantName}</p>
+                  <p className="text-xl font-bold text-gray-900 leading-tight mt-1">{result.participant.name}</p>
                 </div>
                 <div className="pt-4 border-t border-gray-100">
                   <p className="text-xs text-emerald-600 uppercase font-bold tracking-wider">Registration No.</p>
-                  <p className="text-lg font-mono font-bold text-gray-800 mt-1">{result.registrationNumber}</p>
+                  <p className="text-lg font-mono font-bold text-gray-800 mt-1">{result.participant.registrationNumber}</p>
                 </div>
+
+                {/* Check Day Context */}
+                {result.day ? (
+                  <>
+                    <div className="pt-4 border-t border-gray-100">
+                      <p className="text-sm font-bold text-gray-900 bg-gray-100 px-3 py-1 inline-block rounded-md uppercase">
+                        Today — {result.day.name}
+                      </p>
+                    </div>
+
+                    {/* Scientific Session */}
+                    {result.conference && (
+                      <div className="pt-4 border-t border-gray-100">
+                        <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">Scientific Session</p>
+                        <p className="text-emerald-600 font-bold flex items-center text-sm">
+                          <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Eligible
+                        </p>
+                        {result.conference.checkedIn ? (
+                          <p className="text-emerald-600 font-bold flex items-center text-sm mt-1">
+                            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Already checked in
+                            {result.conference.checkedInAt && ` (Time: ${new Date(result.conference.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
+                          </p>
+                        ) : (
+                          <p className="text-gray-500 text-sm mt-1">Not checked in</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Workshops */}
+                    {result.workshops && result.workshops.length > 0 ? (
+                      result.workshops.map((ws) => (
+                        <div key={ws.id} className="pt-4 border-t border-gray-100">
+                          <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">Today's Workshop</p>
+                          <p className="font-bold text-gray-900">{ws.title}</p>
+                          <p className="text-gray-600 text-sm">{new Date(ws.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {ws.venue}</p>
+                          
+                          <p className="text-emerald-600 font-bold flex items-center text-sm mt-2">
+                            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Registered
+                          </p>
+                          
+                          {ws.attended ? (
+                            <p className="text-emerald-600 font-bold flex items-center text-sm mt-1">
+                              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Already attended
+                              {ws.attendedAt && ` (Time: ${new Date(ws.attendedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`}
+                            </p>
+                          ) : (
+                            <p className="text-gray-500 text-sm mt-1">Not attended</p>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="pt-4 border-t border-gray-100">
+                        <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">Today's Workshop</p>
+                        <p className="text-gray-500 text-sm">No workshops today</p>
+                      </div>
+                    )}
+
+                    {/* Food */}
+                    {result.food && (
+                      <div className="pt-4 border-t border-gray-100 grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">Breakfast</p>
+                          {result.food.breakfast.collected ? (
+                            <p className="text-emerald-600 font-bold flex items-center text-sm">
+                              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Already given
+                            </p>
+                          ) : (
+                            <p className="text-gray-500 text-sm flex items-center">
+                              <span className="w-3 h-3 border border-gray-400 rounded-full mr-2 inline-block"></span>
+                              Not given
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">Lunch</p>
+                          {result.food.lunch.collected ? (
+                            <p className="text-emerald-600 font-bold flex items-center text-sm">
+                              <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Already given
+                            </p>
+                          ) : (
+                            <p className="text-gray-500 text-sm flex items-center">
+                              <span className="w-3 h-3 border border-gray-400 rounded-full mr-2 inline-block"></span>
+                              Not given
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="pt-4 border-t border-gray-100 bg-amber-50 -mx-5 -mb-5 px-5 py-4 rounded-b-xl border-t-amber-200">
+                     <p className="text-amber-800 font-bold text-center">No Perizia day is currently active.</p>
+                  </div>
+                )}
               </div>
             </div>
 

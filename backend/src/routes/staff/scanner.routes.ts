@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { requireStaff } from "../../middleware/staff-auth";
 import { verifyQrCredential } from "../../modules/registration/qr.service";
+import { getCurrentPeriziaDay } from "../../modules/registration/day.service";
+import { getScannerParticipantContext } from "../../modules/staff/scanner.service";
 import { z } from "zod";
 
 const router = Router();
@@ -16,14 +18,34 @@ router.post("/verify", async (req, res, next) => {
     const { qrToken } = verifyScanSchema.parse(req.body);
 
     const result = await verifyQrCredential(qrToken);
+    const editionId = result.registration.editionId;
+    const participant = result.registration.participant;
+    const registrationNumber = result.registration.registrationNumber;
+
+    const currentDay = await getCurrentPeriziaDay(editionId);
+
+    let contextData = null;
+    if (currentDay) {
+      contextData = await getScannerParticipantContext(result.registration.id, currentDay.id);
+    }
 
     res.json({
       success: true,
       data: {
         valid: true,
-        registrationNumber: result.registration.registrationNumber,
-        participantName: result.registration.participant.fullName,
         message: "Valid Registration",
+        participant: {
+          name: participant.fullName,
+          registrationNumber: registrationNumber,
+        },
+        day: currentDay ? {
+          id: currentDay.id,
+          number: currentDay.dayNumber,
+          name: currentDay.name,
+        } : null,
+        conference: contextData?.conference || null,
+        workshops: contextData?.workshops || [],
+        food: contextData?.food || null,
       },
     });
   } catch (error: any) {
