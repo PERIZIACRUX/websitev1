@@ -94,3 +94,66 @@ export async function getAdminStats(): Promise<AdminDashboardStats> {
     inactiveVolunteers,
   };
 }
+
+export async function getTodayFoodQuotas() {
+  const editionId = await getActiveEditionId();
+  // Get active day
+  const today = await prisma.periziaDay.findFirst({
+    where: {
+      editionId,
+      // Same logic as getCurrentPeriziaDay for date matching?
+      // Since we just need "today's", actually the dashboard can just get ALL days' quotas,
+      // but returning all is easier.
+    }
+  });
+  
+  // Let's just return all food quotas for the active edition, grouped by day
+  const quotas = await prisma.foodQuota.findMany({
+    where: {
+      periziaDay: {
+        editionId,
+      }
+    },
+    include: {
+      periziaDay: true,
+    },
+    orderBy: {
+      periziaDay: {
+        date: "asc"
+      }
+    }
+  });
+
+  return quotas;
+}
+
+export async function updateFoodQuota(id: string, totalAllocated: number, staffId: string) {
+  const quota = await prisma.foodQuota.findUnique({ where: { id } });
+  if (!quota) throw new Error("Quota not found.");
+  if (totalAllocated < quota.givenCount) {
+    throw new Error("Allocated quantity cannot be less than food already distributed.");
+  }
+  
+  const updated = await prisma.foodQuota.update({
+    where: { id },
+    data: {
+      totalAllocated,
+      updatedByStaffId: staffId,
+    }
+  });
+
+  await prisma.staffAuditLog.create({
+    data: {
+      staffId,
+      action: "FOOD_QUOTA_UPDATED",
+      entityType: "FoodQuota",
+      entityId: id,
+      details: {
+        oldAllocated: quota.totalAllocated,
+        newAllocated: totalAllocated,
+      }
+    }
+  });
+
+  return updated;
+}

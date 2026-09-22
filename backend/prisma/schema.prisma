@@ -192,17 +192,17 @@ model ScannerStation {
 ///     so that audit logs remain attributable.
 ///   - lastLoginAt is updated on successful authentication only.
 model Staff {
-  id           String    @id @default(uuid())
-  name         String
-  email        String    @unique
+  id                 String    @id @default(uuid())
+  name               String
+  email              String    @unique
   /// bcrypt/argon2 hash — raw password is NEVER stored
-  passwordHash         String
-  mustChangePassword   Boolean   @default(false)
-  role                 StaffRole @default(VOLUNTEER)
-  isActive     Boolean   @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  passwordHash       String
+  mustChangePassword Boolean   @default(false)
+  role               StaffRole @default(VOLUNTEER)
+  isActive           Boolean   @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // ── Reverse relations ──────────────────────────────────────────────────────
   sessions              StaffSession[]       @relation("StaffSessions")
@@ -211,6 +211,7 @@ model Staff {
   checkInUpdates        ConferenceCheckIn[]  @relation("StaffCheckInUpdates")
   foodCollections       FoodCollection[]     @relation("StaffFoodCollections")
   foodCollectionUpdates FoodCollection[]     @relation("StaffFoodCollectionUpdates")
+  foodQuotaUpdates      FoodQuota[]          @relation("StaffFoodQuotaUpdates")
   workshopAttendances   WorkshopAttendance[] @relation("StaffWorkshopAttendances")
   attendanceUpdates     WorkshopAttendance[] @relation("StaffAttendanceUpdates")
   periziaContent        PeriziaContent[]     @relation("StaffContentUpdates")
@@ -332,6 +333,7 @@ model PeriziaDay {
   workshops           Workshop[]             @relation("DayWorkshops")
   conferenceCheckIns  ConferenceCheckIn[]    @relation("DayConferenceCheckIns")
   foodCollections     FoodCollection[]       @relation("DayFoodCollections")
+  foodQuotas          FoodQuota[]            @relation("DayFoodQuotas")
   workshopReg         WorkshopRegistration[] @relation("DayWorkshopRegistrations")
   workshopAttendances WorkshopAttendance[]   @relation("DayWorkshopAttendances")
 
@@ -668,6 +670,39 @@ model FoodCollection {
   @@index([periziaDayId])
   @@index([mealType])
   @@map("food_collections")
+}
+
+// =============================================================================
+// PERIZIA — FOOD QUOTA
+// =============================================================================
+
+/// Records the available inventory for a meal type on a specific day.
+///
+/// CRITICAL RULES:
+///   - One quota per day per meal type.
+///   - givenCount is incremented atomically when food is collected.
+///   - remaining is calculated logically as totalAllocated - givenCount.
+///   - totalAllocated must never be decreased below givenCount.
+model FoodQuota {
+  id               String   @id @default(uuid())
+  periziaDayId     String
+  mealType         MealType
+  totalAllocated   Int
+  givenCount       Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  /// FK to Staff who last updated this quota (admin manual update)
+  updatedByStaffId String?
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+  periziaDay     PeriziaDay @relation("DayFoodQuotas", fields: [periziaDayId], references: [id])
+  updatedByStaff Staff?     @relation("StaffFoodQuotaUpdates", fields: [updatedByStaffId], references: [id], onDelete: SetNull)
+
+  // ── Constraints ───────────────────────────────────────────────────────────
+  /// One quota per meal type per day
+  @@unique([periziaDayId, mealType])
+  @@index([periziaDayId])
+  @@map("food_quotas")
 }
 
 // =============================================================================
