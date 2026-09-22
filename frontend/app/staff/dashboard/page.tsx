@@ -2,6 +2,7 @@ import { requireStaff } from "@/lib/auth/staff-session";
 import Link from "next/link";
 import { fetchBackend } from "@/lib/api";
 import { cookies } from "next/headers";
+import { LiveFoodQuotas } from "@/components/dashboard/LiveFoodQuotas";
 
 const STAFF_SESSION_COOKIE_NAME = "staff_session_id";
 
@@ -52,6 +53,8 @@ export default async function VolunteerDashboardPage() {
           <dd className="mt-1 text-3xl font-semibold text-orange-500">{stats.lunchCount}</dd>
         </div>
       </div>
+
+      <LiveFoodQuotas />
 
       {/* QR Scanner Link */}
       <div className="mt-12 p-12 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg text-center flex flex-col items-center">
