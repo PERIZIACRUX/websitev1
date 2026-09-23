@@ -1,6 +1,6 @@
 import request from "supertest";
-import app from "@/app";
-import { prisma } from "@/infrastructure/db/client";
+import app from "../../src/app";
+import { prisma } from "../../src/infrastructure/db/client";
 
 afterAll(async () => {
   await prisma.$disconnect();

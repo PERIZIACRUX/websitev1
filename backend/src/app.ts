@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { errorHandler } from "./middleware/error-handler";
 import { registrationRouter } from "./routes/registration.routes";
 import { paymentRouter } from "./routes/payment.routes";
@@ -12,6 +14,8 @@ import staffDashboardRouter from "./routes/staff/dashboard.routes";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 const allowedOrigins = process.env.FRONTEND_URL 
   ? process.env.FRONTEND_URL.split(',') 
   : ["http://localhost:3000"];
@@ -20,14 +24,42 @@ app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) {
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     
-    return callback(new Error('Not allowed by CORS'));
+    return callback(null, false as unknown as string);
   },
   credentials: true
 }));
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 500,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests, please try again later." }
+});
+app.use(globalLimiter);
+
+app.use((req, res, next) => {
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    const originOrReferer = req.headers.origin || req.headers.referer;
+    if (originOrReferer) {
+      const isAllowed = allowedOrigins.some(o => originOrReferer.startsWith(o));
+      if (!isAllowed) {
+        res.status(403).json({ success: false, error: 'Forbidden by CSRF protection' });
+        return;
+      }
+    }
+  }
+  next();
+});
 app.use(express.json());
 app.use(cookieParser());
 

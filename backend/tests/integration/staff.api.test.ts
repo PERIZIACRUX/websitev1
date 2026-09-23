@@ -1,8 +1,8 @@
 import request from "supertest";
-import app from "@/app";
-import { prisma } from "@/infrastructure/db/client";
-import { STAFF_SESSION_COOKIE_NAME } from "@/middleware/staff-auth";
-import { createStaffSession } from "@/modules/staff/session.service";
+import app from "../../src/app";
+import { prisma } from "../../src/infrastructure/db/client";
+import { STAFF_SESSION_COOKIE_NAME } from "../../src/middleware/staff-auth";
+import { createStaffSession } from "../../src/modules/staff/session.service";
 import * as argon2 from "argon2";
 
 describe("Staff API Endpoints", () => {
@@ -174,6 +174,31 @@ describe("Staff API Endpoints", () => {
         .set("Cookie", revokedCookie)
         .send({ name: "A", email: "a@a.com" });
       expect(res.status).toBe(401);
+    });
+
+    it("should block access if session is expired", async () => {
+      const expiredSession = await createStaffSession(adminId);
+      await prisma.staffSession.update({
+        where: { id: expiredSession.session.id },
+        data: { expiresAt: new Date(Date.now() - 1000) }, // Expired 1 second ago
+      });
+      const expiredCookie = `${STAFF_SESSION_COOKIE_NAME}=${expiredSession.rawToken}`;
+      
+      const res = await request(app)
+        .post("/api/v1/staff/volunteers")
+        .set("Cookie", expiredCookie)
+        .send({ name: "A", email: "a@a.com" });
+      expect(res.status).toBe(401);
+    });
+
+    it("should block state-changing cross-site requests (CSRF protection)", async () => {
+      const res = await request(app)
+        .post("/api/v1/staff/volunteers")
+        .set("Cookie", adminCookie)
+        .set("Origin", "http://evil-attacker.com")
+        .send({ name: "Evil", email: "evil@a.com" });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe("Forbidden by CSRF protection");
     });
   });
 
