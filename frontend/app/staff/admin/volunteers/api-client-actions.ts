@@ -1,3 +1,5 @@
+"use server";
+
 import { fetchBackend } from "@/lib/api";
 import { cookies } from "next/headers";
 
