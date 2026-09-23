@@ -1,8 +1,8 @@
 import request from "supertest";
-import app from "@/app";
-import { prisma } from "@/infrastructure/db/client";
-import { STAFF_SESSION_COOKIE_NAME } from "@/middleware/staff-auth";
-import { createStaffSession } from "@/modules/staff/session.service";
+import app from "../../src/app";
+import { prisma } from "../../src/infrastructure/db/client";
+import { STAFF_SESSION_COOKIE_NAME } from "../../src/middleware/staff-auth";
+import { createStaffSession } from "../../src/modules/staff/session.service";
 import * as argon2 from "argon2";
 
 describe("Dashboard API Endpoints", () => {
@@ -13,14 +13,24 @@ describe("Dashboard API Endpoints", () => {
   let editionId: string;
 
   beforeAll(async () => {
-    // Clean up
+    // Clean up in proper foreign-key order
     await prisma.staffSession.deleteMany();
-    await prisma.staff.deleteMany();
+    await prisma.staffAuditLog.deleteMany();
     await prisma.foodCollection.deleteMany();
     await prisma.conferenceCheckIn.deleteMany();
-    await prisma.periziaDay.deleteMany();
+    await prisma.workshopAttendance.deleteMany();
+    await prisma.workshopRegistration.deleteMany();
+    await prisma.notification.deleteMany();
+    await prisma.foodQuota.deleteMany();
+    await prisma.qrCredential.deleteMany();
+    await prisma.payment.deleteMany();
     await prisma.registration.deleteMany();
+    await prisma.participant.deleteMany();
+    await prisma.periziaContent.deleteMany();
+    await prisma.workshop.deleteMany();
+    await prisma.periziaDay.deleteMany();
     await prisma.periziaEdition.deleteMany();
+    await prisma.staff.deleteMany();
 
     // Create a mock active edition
     const edition = await prisma.periziaEdition.create({
@@ -72,9 +82,24 @@ describe("Dashboard API Endpoints", () => {
   });
 
   afterAll(async () => {
+    // Clean up in proper foreign-key order
     await prisma.staffSession.deleteMany();
-    await prisma.staff.deleteMany();
+    await prisma.staffAuditLog.deleteMany();
+    await prisma.foodCollection.deleteMany();
+    await prisma.conferenceCheckIn.deleteMany();
+    await prisma.workshopAttendance.deleteMany();
+    await prisma.workshopRegistration.deleteMany();
+    await prisma.notification.deleteMany();
+    await prisma.foodQuota.deleteMany();
+    await prisma.qrCredential.deleteMany();
+    await prisma.payment.deleteMany();
+    await prisma.registration.deleteMany();
+    await prisma.participant.deleteMany();
+    await prisma.periziaContent.deleteMany();
+    await prisma.workshop.deleteMany();
+    await prisma.periziaDay.deleteMany();
     await prisma.periziaEdition.deleteMany();
+    await prisma.staff.deleteMany();
   });
 
   describe("GET /api/v1/staff/dashboard/volunteer-stats", () => {

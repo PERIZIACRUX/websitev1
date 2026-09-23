@@ -9,9 +9,19 @@ import {
   performFoodCollection
 } from "../../modules/staff/scanner.service";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 
 const router = Router();
 
+const scannerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 200, // Volunteers might scan frequently; 200 requests / 15 minutes is reasonable
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { success: false, error: "Too many scans, please try again later." }
+});
+
+router.use(scannerLimiter);
 router.use(requireStaff());
 
 const verifyScanSchema = z.object({

@@ -17,11 +17,19 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8),
 });
 
-router.post("/login", async (req, res, next) => {
+import rateLimit from "express-rate-limit";
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10, // Max 10 login attempts per IP per 15 minutes
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { success: false, error: "Too many login attempts, please try again later." }
+});
+
+router.post("/login", loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
-
-    // Rate limiting would go here, omitting simple version for exact match to API requirement
     const { staff, rawToken } = await verifyCredentials(email, password);
 
     res.cookie(STAFF_SESSION_COOKIE_NAME, rawToken, {
