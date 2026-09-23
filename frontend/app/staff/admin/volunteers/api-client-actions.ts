@@ -1,4 +1,5 @@
 import { fetchBackend } from "@/lib/api";
+import { cookies } from "next/headers";
 
 export async function createVolunteerApiAction(prevState: any, formData: FormData) {
   const name = formData.get("name") as string;
@@ -9,8 +10,13 @@ export async function createVolunteerApiAction(prevState: any, formData: FormDat
   }
 
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("staff_session_id")?.value;
+    const headers = token ? { Cookie: `staff_session_id=${token}` } : undefined;
+
     const res = await fetchBackend("/api/v1/staff/volunteers", {
       method: "POST",
+      headers,
       body: JSON.stringify({ name, email }),
     });
     
@@ -32,8 +38,13 @@ export async function createVolunteerApiAction(prevState: any, formData: FormDat
 
 export async function deactivateVolunteerApiAction(id: string) {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("staff_session_id")?.value;
+    const headers = token ? { Cookie: `staff_session_id=${token}` } : undefined;
+
     const res = await fetchBackend(`/api/v1/staff/volunteers/${id}/deactivate`, {
       method: "POST",
+      headers,
     });
     
     const data = await res.json();
@@ -52,8 +63,13 @@ export async function deactivateVolunteerApiAction(id: string) {
 
 export async function reactivateVolunteerApiAction(id: string) {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("staff_session_id")?.value;
+    const headers = token ? { Cookie: `staff_session_id=${token}` } : undefined;
+
     const res = await fetchBackend(`/api/v1/staff/volunteers/${id}/reactivate`, {
       method: "POST",
+      headers,
     });
     
     const data = await res.json();
@@ -71,8 +87,13 @@ export async function reactivateVolunteerApiAction(id: string) {
 
 export async function resetPasswordApiAction(id: string) {
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("staff_session_id")?.value;
+    const headers = token ? { Cookie: `staff_session_id=${token}` } : undefined;
+
     const res = await fetchBackend(`/api/v1/staff/volunteers/${id}/reset-password`, {
       method: "POST",
+      headers,
     });
     
     const data = await res.json();
