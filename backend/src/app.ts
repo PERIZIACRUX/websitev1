@@ -17,7 +17,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 const allowedOrigins = process.env.FRONTEND_URL 
-  ? process.env.FRONTEND_URL.split(',') 
+  ? process.env.FRONTEND_URL.split(',').map(s => s.trim().replace(/\/$/, ''))
   : ["http://localhost:3000"];
 
 app.use(cors({
