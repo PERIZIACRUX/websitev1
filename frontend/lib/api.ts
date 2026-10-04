@@ -1,8 +1,18 @@
-export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://localhost:3001";
+const normalizeBackendBaseUrl = (rawUrl: string) => {
+  const trimmed = (rawUrl || "http://localhost:3001").trim();
+  if (!trimmed) return "http://localhost:3001";
+
+  return trimmed.replace(/\/+$/, "").replace(/\/api\/v1$/, "").replace(/\/api$/, "");
+};
+
+export const BACKEND_URL = normalizeBackendBaseUrl(
+  process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://localhost:3001",
+);
 
 export async function fetchBackend(endpoint: string, options: RequestInit = {}) {
-  const url = `${BACKEND_URL}${endpoint}`;
-  
+  const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const url = `${BACKEND_URL}${normalizedEndpoint}`;
+
   return fetch(url, {
     ...options,
     headers: {
