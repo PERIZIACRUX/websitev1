@@ -9,6 +9,7 @@
     "build": "tsc && tsc-alias",
     "type-check": "tsc --noEmit",
     "prisma:generate": "prisma generate",
+    "seed:demo": "tsx prisma/seed-2026.ts",
     "test:integration": "jest tests/integration --runInBand"
   },
   "dependencies": {
