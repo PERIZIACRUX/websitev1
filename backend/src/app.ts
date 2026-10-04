@@ -14,10 +14,13 @@ import staffDashboardRouter from "./routes/staff/dashboard.routes";
 
 const DEMO_MODE = (process.env.DEMO_MODE ?? "false").toLowerCase() === "true";
 const DEMO_ALLOWED_ORIGINS = [
+  "https://websitev1-frontend.vercel.app",
   "https://websitev1-frontend-9kjmgee3t-cruxperizia.vercel.app",
   "https://websitev1-frontend-p48rxassh-cruxperizia.vercel.app",
   "http://localhost:3000",
 ];
+
+const DEMO_ALLOWED_VERCEL_ORIGIN_PATTERN = /^https:\/\/websitev1-frontend(?:-[a-z0-9-]+)?\.vercel\.app$/i;
 
 const normalizeOrigin = (value?: string | null) => {
   if (!value) return "";
@@ -49,7 +52,7 @@ const isDemoOriginAllowed = (origin: string) => {
 
   if (DEMO_ALLOWED_ORIGINS.includes(normalizedOrigin)) return true;
 
-  return /^https:\/\/websitev1-frontend-[a-z0-9-]+\.vercel\.app$/i.test(normalizedOrigin);
+  return DEMO_ALLOWED_VERCEL_ORIGIN_PATTERN.test(normalizedOrigin);
 };
 
 const allowedOrigins = parseAllowedOrigins(process.env.FRONTEND_URL);
