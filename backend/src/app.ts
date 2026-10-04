@@ -12,25 +12,75 @@ import staffVolunteersRouter from "./routes/staff/volunteers.routes";
 import staffScannerRouter from "./routes/staff/scanner.routes";
 import staffDashboardRouter from "./routes/staff/dashboard.routes";
 
+const DEMO_MODE = (process.env.DEMO_MODE ?? "false").toLowerCase() === "true";
+const DEMO_ALLOWED_ORIGINS = [
+  "https://websitev1-frontend-9kjmgee3t-cruxperizia.vercel.app",
+  "http://localhost:3000",
+];
+
+const normalizeOrigin = (value?: string | null) => {
+  if (!value) return "";
+
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/+$/, "");
+  }
+};
+
+const parseAllowedOrigins = (raw?: string) => {
+  const configured = raw
+    ? raw.split(",").map((entry) => normalizeOrigin(entry)).filter(Boolean)
+    : [];
+
+  const demoOrigins = DEMO_MODE ? DEMO_ALLOWED_ORIGINS : [];
+  return Array.from(new Set([...configured, ...demoOrigins, "http://localhost:3000"]));
+};
+
+const allowedOrigins = parseAllowedOrigins(process.env.FRONTEND_URL);
+
+const logDemoFailure = (req: express.Request, status: number, category: string) => {
+  if (!DEMO_MODE) return;
+
+  const origin = req.headers.origin || req.headers.referer || "unknown";
+  console.warn("[DEMO_MODE] failed request", {
+    method: req.method,
+    route: req.originalUrl || req.url,
+    status,
+    origin,
+    category,
+  });
+};
+
 const app = express();
 
 app.set("trust proxy", 1);
 
-const allowedOrigins = process.env.FRONTEND_URL 
-  ? process.env.FRONTEND_URL.split(',').map(s => s.trim().replace(/\/$/, ''))
-  : ["http://localhost:3000"];
-
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
+    if (!origin) {
       return callback(null, true);
     }
-    
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    const isAllowed = allowedOrigins.includes(normalizedOrigin);
+
+    if (isAllowed) {
+      return callback(null, true);
+    }
+
+    if (DEMO_MODE && DEMO_ALLOWED_ORIGINS.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
     return callback(null, false as unknown as string);
   },
-  credentials: true
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Cookie", "X-Requested-With"],
 }));
 
 app.use(helmet({
@@ -48,16 +98,30 @@ const globalLimiter = rateLimit({
 app.use(globalLimiter);
 
 app.use((req, res, next) => {
-  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+  if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method)) {
     const originOrReferer = req.headers.origin || req.headers.referer;
-    if (originOrReferer) {
-      const isAllowed = allowedOrigins.some(o => originOrReferer.startsWith(o));
+    const requestOrigin = normalizeOrigin(originOrReferer);
+
+    if (requestOrigin) {
+      const isAllowed = allowedOrigins.includes(requestOrigin);
+
       if (!isAllowed) {
-        res.status(403).json({ success: false, error: 'Forbidden by CSRF protection' });
-        return;
+        if (DEMO_MODE) {
+          const isDemoAllowed = DEMO_ALLOWED_ORIGINS.includes(requestOrigin);
+          if (!isDemoAllowed) {
+            logDemoFailure(req, 403, "origin-validation");
+            res.status(403).json({ success: false, error: "Forbidden by CSRF protection" });
+            return;
+          }
+        } else {
+          logDemoFailure(req, 403, "origin-validation");
+          res.status(403).json({ success: false, error: "Forbidden by CSRF protection" });
+          return;
+        }
       }
     }
   }
+
   next();
 });
 app.use(express.json());

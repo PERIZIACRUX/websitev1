@@ -191,6 +191,29 @@ describe("Staff API Endpoints", () => {
       expect(res.status).toBe(401);
     });
 
+    it("should allow the demo frontend origin when DEMO_MODE is true", async () => {
+      const previousDemoMode = process.env.DEMO_MODE;
+      const previousFrontendUrl = process.env.FRONTEND_URL;
+
+      process.env.DEMO_MODE = "true";
+      delete process.env.FRONTEND_URL;
+      jest.resetModules();
+
+      const demoApp = (await import("../../src/app")).default;
+      const res = await request(demoApp)
+        .post("/api/v1/staff/volunteers")
+        .set("Cookie", adminCookie)
+        .set("Origin", "https://websitev1-frontend-9kjmgee3t-cruxperizia.vercel.app")
+        .send({ name: "Demo Volunteer", email: "demo.vol@example.com" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      process.env.DEMO_MODE = previousDemoMode;
+      process.env.FRONTEND_URL = previousFrontendUrl;
+      jest.resetModules();
+    });
+
     it("should block state-changing cross-site requests (CSRF protection)", async () => {
       const res = await request(app)
         .post("/api/v1/staff/volunteers")

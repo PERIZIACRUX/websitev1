@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { fetchBackend } from "@/lib/api";
 
 interface FoodQuota {
   id: string;
@@ -22,7 +23,9 @@ export function LiveFoodQuotas() {
 
   const fetchQuotas = async () => {
     try {
-      const res = await fetch("/api/v1/staff/dashboard/food-quotas");
+      const res = await fetchBackend("/api/v1/staff/dashboard/food-quotas", {
+        credentials: "include",
+      });
       if (res.ok) {
         const json = await res.json();
         setQuotas(json.data || []);
