@@ -15,6 +15,7 @@ import staffDashboardRouter from "./routes/staff/dashboard.routes";
 const DEMO_MODE = (process.env.DEMO_MODE ?? "false").toLowerCase() === "true";
 const DEMO_ALLOWED_ORIGINS = [
   "https://websitev1-frontend-9kjmgee3t-cruxperizia.vercel.app",
+  "https://websitev1-frontend-p48rxassh-cruxperizia.vercel.app",
   "http://localhost:3000",
 ];
 
@@ -38,6 +39,17 @@ const parseAllowedOrigins = (raw?: string) => {
 
   const demoOrigins = DEMO_MODE ? DEMO_ALLOWED_ORIGINS : [];
   return Array.from(new Set([...configured, ...demoOrigins, "http://localhost:3000"]));
+};
+
+const isDemoOriginAllowed = (origin: string) => {
+  if (!DEMO_MODE) return false;
+
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (!normalizedOrigin) return false;
+
+  if (DEMO_ALLOWED_ORIGINS.includes(normalizedOrigin)) return true;
+
+  return /^https:\/\/websitev1-frontend-[a-z0-9-]+\.vercel\.app$/i.test(normalizedOrigin);
 };
 
 const allowedOrigins = parseAllowedOrigins(process.env.FRONTEND_URL);
@@ -72,7 +84,7 @@ app.use(cors({
       return callback(null, true);
     }
 
-    if (DEMO_MODE && DEMO_ALLOWED_ORIGINS.includes(normalizedOrigin)) {
+    if (isDemoOriginAllowed(normalizedOrigin)) {
       return callback(null, true);
     }
 
@@ -107,7 +119,7 @@ app.use((req, res, next) => {
 
       if (!isAllowed) {
         if (DEMO_MODE) {
-          const isDemoAllowed = DEMO_ALLOWED_ORIGINS.includes(requestOrigin);
+          const isDemoAllowed = isDemoOriginAllowed(requestOrigin);
           if (!isDemoAllowed) {
             logDemoFailure(req, 403, "origin-validation");
             res.status(403).json({ success: false, error: "Forbidden by CSRF protection" });
